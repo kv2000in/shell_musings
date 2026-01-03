@@ -10,8 +10,9 @@ exit 1
 fi
 
 GPIO_PATH="/sys/class/gpio/gpio$GPIO"
+VALUE="$GPIO_PATH/value"
 
-# Enable pull-up resistor
+# Enable pull-up
 raspi-gpio set "$GPIO" pu
 
 # Export GPIO if needed
@@ -24,21 +25,18 @@ fi
 echo in > "$GPIO_PATH/direction"
 echo falling > "$GPIO_PATH/edge"
 
-# Clear any pending edge
-cat "$GPIO_PATH/value" > /dev/null
+# Clear any stale state
+cat "$VALUE" > /dev/null
 
-# Run forever (blocking, near-zero CPU)
+# Run forever — blocks until GPIO changes
 while :; do
-# Block until button press
-read _ < "$GPIO_PATH/value"
+inotifywait -qq -e modify "$VALUE"
 
-# Delay after press
+# Confirm it's actually LOW (falling edge)
+if [ "$(cat "$VALUE")" = "0" ]; then
 sleep "$DELAY"
-
-# Fire URL (ignore response)
 curl -s -o /dev/null "$URL"
-
-# Debounce
-sleep 0.3
+sleep 0.3   # debounce
+fi
 done
 
